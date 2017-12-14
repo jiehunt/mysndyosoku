@@ -182,14 +182,14 @@ cat_features = [
     "Area_Manager__c",
     "Business_Type__c",
     "Business_declared_BK__c",
-    # "Dealership_Type__c",
-    # "Dealership__c",
-    # "Lawsuits_Liens__c",
+    "Dealership_Type__c",
+    "Dealership__c",
+    "Lawsuits_Liens__c",
     "Zip1__c"
 ]
 
-cat_train = train[cat_features]
-print (cat_train.describe())
+# cat_train = train[cat_features]
+# print (cat_train.describe())
 
 for column in cat_features:
     temp = pd.get_dummies(pd.Series(train[column]), prefix=column, prefix_sep='_')
@@ -216,7 +216,32 @@ trans_mapping = {
 train[feature_name] = train[feature_name].applymap(lambda x: trans_mapping[x])
 train = train[train["UW_Status__c"] > -1]
 
-# col = [c for c in train.columns if c not in ['UW_Status__c','Credit_Line_Size__c']]
+# train = train[train["Average_Bank_Balance"] > -1]
+
+# train.plot(kind = 'scatter', x=feature_impotant[0], y='UW_Status__c')
+# train.plot.scatter(x=range(1,400), y=feature_impotant[0])
+# print (train[feature_impotant].describe())
+# fig = plt.figure()
+# ax = fig.add_subplot(2,2,1)
+# # ax.hist(train["of_vehicles_floored__c"].dropna(), bins = 100, alpha=0.5)
+# ax.plot(train[feature_impotant[0]].dropna(), alpha=0.5)
+#
+#
+# bx = fig.add_subplot(2,2,2)
+# bx.plot(train[feature_impotant[1]].dropna(), alpha=0.5)
+#
+# cx = fig.add_subplot(2,2,3)
+# cx.plot(train[feature_impotant[2]].dropna(), alpha=0.5)
+
+# dx = fig.add_subplot(2,2,4)
+# dx.plot(train[feature_impotant[3]].dropna(), alpha=0.5)
+#
+# hplt.show()
+# plt = train.plot(kind = 'scatter', x=feature_impotant[0], y='UW_Status__c').get_figure()
+#
+# print ("Over here")
+
+### Train Sing Model
 y_train_class = train['UW_Status__c']
 y_train_regre = train['Credit_Line_Size__c']
 train = train.drop(['UW_Status__c', 'Credit_Line_Size__c'], axis=1)
@@ -363,10 +388,10 @@ print('Train : accuracy = {:>.4f}'.format(accu))
 
 accu = accuracy_score(train["my_predict"], y_train_class)
 print('Total : accuracy = {:>.4f}'.format(accu))
-
-importance = xgb_model.feature_importances_
-features = train.columns
-print(len(features))
+#
+# importance = xgb_model.feature_importances_
+# features = train.columns
+# print(len(features))
 
 # for i, imp in enumerate(importance):
 #     print (features[i],imp)
@@ -374,8 +399,8 @@ print(len(features))
 # train = pd.concat([train, y_train_class, y_train_regre], axis=1)
 # train.to_csv("my_res.csv", index=False)
 
-xgb.plot_importance(xgb_model)
-plt.show()
+# xgb.plot_importance(xgb_model)
+# plt.show()
 
 ###Ensemble Generation
 class Ensemble(object):
@@ -484,16 +509,13 @@ log_model = LogisticRegression()
 stack = Ensemble(n_splits=n_splits,
                  stacker = log_model,
                  base_models = (lgb_model,lgb_model2,lgb_model3, xgb_model))
-#hiren
-
+# #hiren
+#
 y_pred, y_pred_p = stack.fit_predict(X_train,y_train,X_test)
 
 accu = accuracy_score(y_pred, y_test)
 print('Cross : accuracy = {:>.4f}'.format(accu))
 
 #
-
-# plt = train.plot(kind = 'scatter', x='of_vehicles_floored__c', y='UW_Status__c').get_figure()
-#
-# plt.show()
+## feature_impotant
 
