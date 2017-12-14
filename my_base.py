@@ -26,7 +26,7 @@ from numba import jit
 # pd.set_option('display.max_columns', 500)
 # pd.set_option('display.width', 1000)
 
-n_splits = 5
+n_splits = 3
 
 # Evaluate Result
 @jit
@@ -118,6 +118,15 @@ feature_to_use = [
 "Credit_Line_Size__c",
 ]
 
+feature_impotant = [
+    "of_vehicles_floored__c",
+    "Average_Days_to_Sale__c",
+    "Dealer_Vehicles_sold_per_month__c",
+    "Average_Bank_Balance",
+    # "Area_Manager__c",
+]
+
+
 train = train[feature_to_use]
 
 ### Category data handler
@@ -167,6 +176,26 @@ train[feature_name] = train[feature_name].applymap(lambda x: float(str(x).split(
 train.to_csv("salceforce_freature.csv", index=False)
 train = pd.read_csv("salceforce_freature.csv")
 
+### Feature Encode
+
+cat_features = [
+    "Area_Manager__c",
+    "Business_Type__c",
+    "Business_declared_BK__c",
+    # "Dealership_Type__c",
+    # "Dealership__c",
+    # "Lawsuits_Liens__c",
+    "Zip1__c"
+]
+
+cat_train = train[cat_features]
+print (cat_train.describe())
+
+for column in cat_features:
+    temp = pd.get_dummies(pd.Series(train[column]), prefix=column, prefix_sep='_')
+        #One-Hot Encoding:convert category to dummy/indicator variables
+    train = pd.concat([train, temp], axis=1)
+    train = train.drop([column], axis=1) #remove original one
 
 ### target encode
 feature_name = ["UW_Status__c"]
@@ -300,54 +329,53 @@ xgb_model = XGBClassifier(**params)
 
 
 ##### cross fit
-# kf = StratifiedKFold(n_splits=n_splits, random_state=22)
-# kf.get_n_splits(X_train, y_train)
-# y_preds_train = []
-# y_preds_test = []
-# for k, (train_idx, valid_idx) in enumerate(kf.split(X_train, y_train)):
-#
-#     xgb_model.fit(X_train.iloc[train_idx],
-#                   y_train.iloc[train_idx],
-#                eval_set=[(X_train.iloc[valid_idx], y_train.iloc[valid_idx])],
-#                eval_metric='auc',
-#                verbose=False,
-#                early_stopping_rounds=50)
-#
-#     y_pred_train = xgb_model.predict_proba(X_train.iloc[valid_idx])[:,1]
-#     y_pred_test = xgb_model.predict(X_test)
-#     # y_pred_k = np.argmax(y_pred_test, axis=1)
-#     accu = accuracy_score(y_test, y_pred_test)
-#     print('fold[{:>3d}]: accuracy = {:>.4f}'.format(k, accu))
-#     y_preds_train.append(y_pred_train)
-#     y_preds_test.append(y_pred_test)
-#
-#
-# col = [c for c in train.columns]
-# train["my_predict"] = xgb_model.predict(train[col])
-# train["my_predict_proba"] = xgb_model.predict_proba(train[col])[:,1]
-# cross_score = cross_val_score(xgb_model, x2, y2, cv=n_splits, scoring='accuracy')
-# print("    cross_score: %.5f" % (cross_score.mean()))
+kf = StratifiedKFold(n_splits=n_splits, random_state=22)
+kf.get_n_splits(X_train, y_train)
+y_preds_train = []
+y_preds_test = []
+for k, (train_idx, valid_idx) in enumerate(kf.split(X_train, y_train)):
 
-# train_pred = xgb_model.predict(X_train[col])
-# accu = accuracy_score(train_pred, y_train)
-# print('Train : accuracy = {:>.4f}'.format(accu))
-#
-# accu = accuracy_score(train["my_predict"], y_train_class)
-# print('Total : accuracy = {:>.4f}'.format(accu))
-#
-# importance = xgb_model.feature_importances_
-# features = train.columns
-# print(len(features))
-#
-# # for i, imp in enumerate(importance):
+    xgb_model.fit(X_train.iloc[train_idx],
+                  y_train.iloc[train_idx],
+               eval_set=[(X_train.iloc[valid_idx], y_train.iloc[valid_idx])],
+               eval_metric='auc',
+               verbose=False,
+               early_stopping_rounds=50)
+
+    y_pred_train = xgb_model.predict_proba(X_train.iloc[valid_idx])[:,1]
+    y_pred_test = xgb_model.predict(X_test)
+    # y_pred_k = np.argmax(y_pred_test, axis=1)
+    accu = accuracy_score(y_test, y_pred_test)
+    print('fold[{:>3d}]: accuracy = {:>.4f}'.format(k, accu))
+    y_preds_train.append(y_pred_train)
+    y_preds_test.append(y_pred_test)
+
+
+col = [c for c in train.columns]
+train["my_predict"] = xgb_model.predict(train[col])
+train["my_predict_proba"] = xgb_model.predict_proba(train[col])[:,1]
+cross_score = cross_val_score(xgb_model, x2, y2, cv=n_splits, scoring='accuracy')
+print("    cross_score: %.5f" % (cross_score.mean()))
+
+train_pred = xgb_model.predict(X_train[col])
+accu = accuracy_score(train_pred, y_train)
+print('Train : accuracy = {:>.4f}'.format(accu))
+
+accu = accuracy_score(train["my_predict"], y_train_class)
+print('Total : accuracy = {:>.4f}'.format(accu))
+
+importance = xgb_model.feature_importances_
+features = train.columns
+print(len(features))
+
+# for i, imp in enumerate(importance):
 #     print (features[i],imp)
-#     print (i)
 
 # train = pd.concat([train, y_train_class, y_train_regre], axis=1)
 # train.to_csv("my_res.csv", index=False)
 
-# xgb.plot_importance(xgb_model)
-# plt.show()
+xgb.plot_importance(xgb_model)
+plt.show()
 
 ###Ensemble Generation
 class Ensemble(object):
@@ -403,8 +431,8 @@ class Ensemble(object):
         pred = self.stacker.predict_proba(S_train)[:,1]
         print( "  Total Gini = ", eval_gini(y, pred) )
 
-        res = self.stacker.predict_proba(S_test)[:,1]
-        res_p = self.stacker.predict(S_test)
+        res_p = self.stacker.predict_proba(S_test)[:,1]
+        res = self.stacker.predict(S_test)
 
         return res, res_p
 
@@ -456,12 +484,16 @@ log_model = LogisticRegression()
 stack = Ensemble(n_splits=n_splits,
                  stacker = log_model,
                  base_models = (lgb_model,lgb_model2,lgb_model3, xgb_model))
+#hiren
 
-y_pred_p,y_pred = stack.fit_predict(X_train, y_train, X_test)
-
-###Output resault
+y_pred, y_pred_p = stack.fit_predict(X_train,y_train,X_test)
 
 accu = accuracy_score(y_pred, y_test)
 print('Cross : accuracy = {:>.4f}'.format(accu))
 
 #
+
+# plt = train.plot(kind = 'scatter', x='of_vehicles_floored__c', y='UW_Status__c').get_figure()
+#
+# plt.show()
+
