@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import cross_val_score
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import *
 from sklearn import *
 from xgboost import XGBClassifier
 from lightgbm import LGBMClassifier
@@ -243,6 +243,7 @@ train = train[train["UW_Status__c"] > -1]
 
 test[feature_name] = test[feature_name].applymap(lambda x: trans_mapping[x])
 test = test[test["UW_Status__c"] > -1]
+
 
 # train = train[train["Average_Bank_Balance"] > -1]
 
@@ -539,25 +540,237 @@ lgb_model3 = LGBMClassifier(**lgb_params3)
 
 log_model = LogisticRegression()
 
-stack = Ensemble(n_splits=n_splits,
+# stack = Ensemble(n_splits=n_splits,
+#                  stacker = log_model,
+#                  base_models = (lgb_model,lgb_model2,lgb_model3, xgb_model))
+# y_pred, y_pred_p = stack.fit_predict(X_train,y_train,X_test)
+
+# accu = accuracy_score(y_pred, y_test)
+# print('Cross : accuracy = {:>.4f}'.format(accu))
+#
+#
+# # test = test.drop(['UW_Status__c', 'Credit_Line_Size__c'], axis=1)
+# y_pred, y_pred_p = stack.fit_predict(X_train,y_train,test[col])
+#
+# test['UW_Status__c_pred'] = y_pred
+# test['UW_Status__c_pred_prob'] = y_pred_p
+#
+# test.to_csv("my_res_classification.csv", index=False)
+
+#### for Credit
+train = pd.read_csv("salceforce_freature_train.csv")
+
+test = pd.read_csv("salceforce_freature_test.csv")
+
+
+### target encode
+feature_name = ["UW_Status__c"]
+trans_mapping = {
+    'Activated': 1,
+    'Ready for Activation':-1,
+    'Approved': -1,
+    'Contract Sent' : -1,
+    'In Contracting': -1,
+    'Awaiting Decision':-1,
+    'Contract Review':-1,
+    'Additional Stips Required for Contract':-1,
+    'Additional Stips required':-1,
+    'Ready for Underwriting':-1,
+    'Declined':-1,
+    'Withdrawn':-1,
+    'Dead':-1
+}
+train[feature_name] = train[feature_name].applymap(lambda x: trans_mapping[x])
+train = train[train["UW_Status__c"] > -1]
+
+train = train.dropna(subset=['Credit_Line_Size__c'])
+
+test[feature_name] = test[feature_name].applymap(lambda x: trans_mapping[x])
+test = test[test["UW_Status__c"] > -1]
+
+y_train_regre = train['Credit_Line_Size__c']
+
+print("Credit has nan")
+print(np.any(np.isnan(y_train_regre)))
+
+train = train.drop(['UW_Status__c', 'Credit_Line_Size__c'], axis=1)
+col = [c for c in train.columns]
+
+# train.fillna(0)
+# test.fillna(0)
+
+x1, x2, y1, y2 = model_selection.train_test_split(train, y_train_regre, test_size=0.1, random_state=99)
+for f in train.columns:
+    if train[f].dtype=='object':
+        print("here is object for regression", f)
+
+X_train = x1
+y_train = y1
+X_test = x2
+y_test = y2
+
+print(X_train.shape)
+print(X_train.columns)
+print(y_train.shape)
+print(X_test.shape)
+print(y_test.shape)
+
+
+print(train.shape)
+
+params = {# 'eta': 0.1,
+          'max_depth': 5,
+          'min_child_weight': 7,
+          'gamma':0,
+          'subsample': 0.9,
+          'colsample_bytree': 0.9,
+          'objective': 'reg:logistic',
+          # 'reg_alpha': 0.01,
+          #'objective': 'multi:softmax',
+          #'num_class': 5,
+          # 'eval_metric': 'auc',
+          'learning_rate':0.1,
+          # 'n_estimators': 1000,
+          #'early_stopping_rounds':50,
+          'seed': 99,
+          # 'gpu_id' : 0,
+          # 'max_bin' : 16,
+          # 'tree_method' : 'gpu_hist',
+          'silent': True,
+}
+
+xgb_model = XGBClassifier(**params)
+
+xgb_model.fit(X_train, y_train)
+y_pred = xgb_model.predict(test[col])
+
+test['Credit_Line_Size__c_pred'] = y_pred
+
+test.to_csv("my_res_Credit_Pred.csv", index=False)
+
+"""
+
+# LightGBM params
+lgb_params = {}
+lgb_params['learning_rate'] = 0.02
+lgb_params['n_estimators'] = 650
+lgb_params['max_bin'] = 10
+lgb_params['subsample'] = 0.8
+lgb_params['subsample_freq'] = 10
+lgb_params['colsample_bytree'] = 0.8
+lgb_params['min_child_samples'] = 500
+lgb_params['random_state'] = 99
+lgb_params['min_data']=1
+lgb_params['min_data_in_bin']=1
+# lgb_params['device'] = 'gpu'
+# lgb_params['gpu_platform_id'] = 0
+# lgb_params['gpu_device_id'] = 0
+
+lgb_params2 = {}
+lgb_params2['n_estimators'] = 1090
+lgb_params2['learning_rate'] = 0.02
+lgb_params2['colsample_bytree'] = 0.3
+lgb_params2['subsample'] = 0.7
+lgb_params2['subsample_freq'] = 2
+lgb_params2['num_leaves'] = 16
+lgb_params2['random_state'] = 99
+lgb_params['min_data']=1
+lgb_params['min_data_in_bin']=1
+# lgb_params2['device'] = 'gpu'
+# lgb_params2['gpu_platform_id'] = 0
+# lgb_params2['gpu_device_id'] = 0
+
+lgb_params3 = {}
+lgb_params3['n_estimators'] = 1100
+lgb_params3['max_depth'] = 4
+lgb_params3['learning_rate'] = 0.02
+lgb_params3['random_state'] = 99
+lgb_params['min_data']=1
+lgb_params['min_data_in_bin']=1
+# lgb_params3['device'] = 'gpu'
+# lgb_params3['gpu_platform_id'] = 0
+# lgb_params3['gpu_device_id'] = 0
+
+lgb_model = LGBMClassifier(**lgb_params)
+
+lgb_model2 = LGBMClassifier(**lgb_params2)
+
+lgb_model3 = LGBMClassifier(**lgb_params3)
+
+
+###Ensemble Generation
+class Ensemble_reg(object):
+    def __init__(self, n_splits, stacker, base_models):
+        self.n_splits = n_splits
+        self.stacker = stacker
+        self.base_models = base_models
+
+    def fit_predict(self, X, y, T):
+        X = np.array(X)
+        y = np.array(y)
+        T = np.array(T)
+
+        folds = list(StratifiedKFold(n_splits=self.n_splits, shuffle=True, random_state=2016).split(X, y))
+
+        S_train = np.zeros((X.shape[0], len(self.base_models)))
+        S_test = np.zeros((T.shape[0], len(self.base_models)))
+        for i, clf in enumerate(self.base_models):
+
+            S_test_i = np.zeros((T.shape[0], self.n_splits))
+
+            for j, (train_idx, test_idx) in enumerate(folds):
+                X_train = X[train_idx]
+                y_train = y[train_idx]
+                X_holdout = X[test_idx]
+
+                start = time.time()
+                print ("Fit %s fold %d" % (str(clf).split('(')[0], j+1))
+                if str(clf).__contains__("XGB"):
+                    print("goto xgb fit")
+                    clf.fit(X_train, y_train)
+                elif str(clf).__contains__("LGB"):
+                    print("goto lgb fit")
+                    clf.fit(X_train, y_train)
+                else:
+                    clf.fit(X_train, y_train)
+
+                y_pred = clf.predict(X_holdout)
+                S_train[test_idx, i] = y_pred
+                S_test_i[:, j] = clf.predict(T)
+                print('using time : %5.1f min' % ((time.time() -start ) / 60) )
+            S_test[:, i] = S_test_i.mean(axis=1)
+
+        self.stacker.fit(S_train, y)
+
+        res = self.stacker.predict(S_test)
+
+        return res
+
+
+# print (np.any(np.isnan(X_train)))
+
+##### cross fit
+# kf = StratifiedKFold(n_splits=n_splits, random_state=22)
+# kf.get_n_splits(X_train, y_train)
+# y_preds_train = []
+# y_preds_test = []
+# for k, (train_idx, valid_idx) in enumerate(kf.split(X_train, y_train)):
+#
+#     xgb_model.fit(X_train.iloc[train_idx],
+#                   y_train.iloc[train_idx],
+#                eval_set=[(X_train.iloc[valid_idx], y_train.iloc[valid_idx])],
+#                verbose=True,
+#                early_stopping_rounds=50)
+#
+#    y_pred_train = xgb_model.predict(X_train.iloc[valid_idx])
+#    y_preds_train.append(y_pred_train)
+
+stack = Ensemble_reg(n_splits=n_splits,
                  stacker = log_model,
                  base_models = (lgb_model,lgb_model2,lgb_model3, xgb_model))
-# #hiren
-#
-y_pred, y_pred_p = stack.fit_predict(X_train,y_train,X_test)
+y_pred = stack.fit_predict(X_train,y_train,test[col])
 
-accu = accuracy_score(y_pred, y_test)
-print('Cross : accuracy = {:>.4f}'.format(accu))
+test['Credit_Line_Size__c_pred'] = y_pred
 
-
-# test = test.drop(['UW_Status__c', 'Credit_Line_Size__c'], axis=1)
-y_pred, y_pred_p = stack.fit_predict(X_train,y_train,test[col])
-
-test['UW_Status__c_pred'] = y_pred
-test['UW_Status__c_pred_prob'] = y_pred_p
-
-test.to_csv("my_res1.csv", index=False)
-
-#
-## feature_impotant
-
+test.to_csv("my_res_Credit_Pred.csv", index=False)
+"""
