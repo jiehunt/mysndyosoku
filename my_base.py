@@ -71,8 +71,11 @@ def gini_lgb(preds, dtrain):
     return 'gini', score, True
 
 
-with codecs.open("./input/salesforse_12132.csv", "r", "Shift-JIS", "ignore") as file:
+with codecs.open("./input/salesforse_train.csv", "r", "Shift-JIS", "ignore") as file:
     train = pd.read_table(file, delimiter=",")
+
+with codecs.open("./input/salesforse_test.csv", "r", "Shift-JIS", "ignore") as file:
+    test = pd.read_table(file, delimiter=",")
 
 feature_to_use = [
 "Additional_Collateral__c",
@@ -128,6 +131,7 @@ feature_impotant = [
 
 
 train = train[feature_to_use]
+test = test[feature_to_use]
 
 ### Category data handler
 feature_cat_normal = [
@@ -139,20 +143,27 @@ feature_cat_normal = [
 "Lawsuits_Liens__c",
 ]
 train_cat_normal = train[feature_cat_normal]
+test_cat_normal = train[feature_cat_normal]
 
 for n_c, name1 in enumerate(feature_cat_normal):
     # Label Encode
     print ("Go to transform ", name1)
     lbl = LabelEncoder()
     train[name1] = lbl.fit_transform(train[name1].astype(str))
+    test[name1] = lbl.fit_transform(test[name1].astype(str))
 
 feature_name = ["Dealer_License__c"]
 train[feature_name] = train[feature_name].applymap(lambda x: 0 if x == np.nan else 1)
+test[feature_name] = test[feature_name].applymap(lambda x: 0 if x == np.nan else 1)
 
 feature_name = ["Zillow_Value__c"]
 train[feature_name] = train[feature_name].applymap(lambda x: str(x).split('$')[1] if str(x).startswith('$') else x)
 train[feature_name] = train[feature_name].applymap(lambda x: str(x).split('K')[0] if str(x).endswith('K') else x)
 train[feature_name] = train[feature_name].applymap(lambda x: x if str(x).isnumeric() else 0)
+
+test[feature_name] = test[feature_name].applymap(lambda x: str(x).split('$')[1] if str(x).startswith('$') else x)
+test[feature_name] = test[feature_name].applymap(lambda x: str(x).split('K')[0] if str(x).endswith('K') else x)
+test[feature_name] = test[feature_name].applymap(lambda x: x if str(x).isnumeric() else 0)
 
 
 feature_name = ["Dealership_Years_in_Business__c"]
@@ -160,11 +171,13 @@ ALPHA = string.ascii_letters
 train[feature_name] = train[feature_name].applymap(lambda x: -1 if x == np.nan else x)
 train[feature_name] = train[feature_name].applymap(lambda x: 0 if str(x).endswith(tuple(ALPHA)) else x)
 
+test[feature_name] = test[feature_name].applymap(lambda x: -1 if x == np.nan else x)
+test[feature_name] = test[feature_name].applymap(lambda x: 0 if str(x).endswith(tuple(ALPHA)) else x)
+
 feature_name = ["Zip1__c"]
 NUMBER = string.digits
 train[feature_name] = train[feature_name].applymap(lambda x: str(x)[0:2] if str(x).startswith(tuple(NUMBER)) else 0)
-# print (train[feature_name])
-#print (train[feature_name].describe())
+test[feature_name] = test[feature_name].applymap(lambda x: str(x)[0:2] if str(x).startswith(tuple(NUMBER)) else 0)
 
 feature_name = ["Average_Purchase_Price__c"]
 train[feature_name] = train[feature_name].applymap(lambda x: str(x).split('$')[1] if str(x).startswith('$') else str(x))
@@ -173,8 +186,17 @@ train[feature_name] = train[feature_name].applymap(lambda x: str(x).split('.')[0
 train[feature_name] = train[feature_name].applymap(lambda x: str(x) if str(x).startswith(tuple(NUMBER)) else 0)
 train[feature_name] = train[feature_name].applymap(lambda x: float(str(x).split(',')[0])*1000 if str(x).find(',') > 0 else str(x))
 
-train.to_csv("salceforce_freature.csv", index=False)
-train = pd.read_csv("salceforce_freature.csv")
+test[feature_name] = test[feature_name].applymap(lambda x: str(x).split('$')[1] if str(x).startswith('$') else str(x))
+test[feature_name] = test[feature_name].applymap(lambda x: str(x).split('-')[0] if str(x).find('-') else str(x))
+test[feature_name] = test[feature_name].applymap(lambda x: str(x).split('.')[0] if str(x).find('.') else str(x))
+test[feature_name] = test[feature_name].applymap(lambda x: str(x) if str(x).startswith(tuple(NUMBER)) else 0)
+test[feature_name] = test[feature_name].applymap(lambda x: float(str(x).split(',')[0])*1000 if str(x).find(',') > 0 else str(x))
+
+train.to_csv("salceforce_freature_train.csv", index=False)
+train = pd.read_csv("salceforce_freature_train.csv")
+
+test.to_csv("salceforce_freature_test.csv", index=False)
+test = pd.read_csv("salceforce_freature_test.csv")
 
 ### Feature Encode
 
@@ -191,11 +213,14 @@ cat_features = [
 # cat_train = train[cat_features]
 # print (cat_train.describe())
 
-for column in cat_features:
-    temp = pd.get_dummies(pd.Series(train[column]), prefix=column, prefix_sep='_')
-        #One-Hot Encoding:convert category to dummy/indicator variables
-    train = pd.concat([train, temp], axis=1)
-    train = train.drop([column], axis=1) #remove original one
+# for column in cat_features:
+#     temp = pd.get_dummies(pd.Series(train[column]), prefix=column, prefix_sep='_')
+#     train = pd.concat([train, temp], axis=1)
+#     train = train.drop([column], axis=1) #remove original one
+#
+#     temp = pd.get_dummies(pd.Series(test[column]), prefix=column, prefix_sep='_')
+#     test = pd.concat([test, temp], axis=1)
+#    test = test.drop([column], axis=1) #remove original one
 
 ### target encode
 feature_name = ["UW_Status__c"]
@@ -215,6 +240,9 @@ trans_mapping = {
     'Dead':-1 }
 train[feature_name] = train[feature_name].applymap(lambda x: trans_mapping[x])
 train = train[train["UW_Status__c"] > -1]
+
+test[feature_name] = test[feature_name].applymap(lambda x: trans_mapping[x])
+test = test[test["UW_Status__c"] > -1]
 
 # train = train[train["Average_Bank_Balance"] > -1]
 
@@ -242,9 +270,14 @@ train = train[train["UW_Status__c"] > -1]
 # print ("Over here")
 
 ### Train Sing Model
+# print (features)
 y_train_class = train['UW_Status__c']
 y_train_regre = train['Credit_Line_Size__c']
 train = train.drop(['UW_Status__c', 'Credit_Line_Size__c'], axis=1)
+col = [c for c in train.columns]
+
+# test = test.drop(['UW_Status__c', 'Credit_Line_Size__c'], axis=1)
+
 
 x1, x2, y1, y2 = model_selection.train_test_split(train, y_train_class, test_size=0.1, random_state=99)
 for f in train.columns:
@@ -258,7 +291,7 @@ y_test = y2
 
 print(train.shape)
 
-params = {'eta': 0.1,
+params = {# 'eta': 0.1,
           'max_depth': 5,
           'min_child_weight': 7,
           'gamma':0,
@@ -268,14 +301,14 @@ params = {'eta': 0.1,
           # 'reg_alpha': 0.01,
           #'objective': 'multi:softmax',
           #'num_class': 5,
-          'eval_metric': 'auc',
-          # 'learning_rate':0.1,
+          # 'eval_metric': 'auc',
+          'learning_rate':0.1,
           # 'n_estimators': 1000,
-          'early_stopping_rounds':50,
+          #'early_stopping_rounds':50,
           'seed': 99,
-          'gpu_id' : 0,
-          'max_bin' : 16,
-          'tree_method' : 'gpu_hist',
+          # 'gpu_id' : 0,
+          # 'max_bin' : 16,
+          # 'tree_method' : 'gpu_hist',
           'silent': True}
 
 xgb_model = XGBClassifier(**params)
@@ -376,18 +409,18 @@ for k, (train_idx, valid_idx) in enumerate(kf.split(X_train, y_train)):
     y_preds_test.append(y_pred_test)
 
 
-col = [c for c in train.columns]
-train["my_predict"] = xgb_model.predict(train[col])
-train["my_predict_proba"] = xgb_model.predict_proba(train[col])[:,1]
-cross_score = cross_val_score(xgb_model, x2, y2, cv=n_splits, scoring='accuracy')
-print("    cross_score: %.5f" % (cross_score.mean()))
-
-train_pred = xgb_model.predict(X_train[col])
-accu = accuracy_score(train_pred, y_train)
-print('Train : accuracy = {:>.4f}'.format(accu))
-
-accu = accuracy_score(train["my_predict"], y_train_class)
-print('Total : accuracy = {:>.4f}'.format(accu))
+# col = [c for c in train.columns]
+# train["my_predict"] = xgb_model.predict(train[col])
+# train["my_predict_proba"] = xgb_model.predict_proba(train[col])[:,1]
+# cross_score = cross_val_score(xgb_model, x2, y2, cv=n_splits, scoring='accuracy')
+# print("    cross_score: %.5f" % (cross_score.mean()))
+# 
+# train_pred = xgb_model.predict(X_train[col])
+# accu = accuracy_score(train_pred, y_train)
+# print('Train : accuracy = {:>.4f}'.format(accu))
+# 
+# accu = accuracy_score(train["my_predict"], y_train_class)
+# print('Total : accuracy = {:>.4f}'.format(accu))
 #
 # importance = xgb_model.feature_importances_
 # features = train.columns
@@ -472,9 +505,9 @@ lgb_params['subsample_freq'] = 10
 lgb_params['colsample_bytree'] = 0.8
 lgb_params['min_child_samples'] = 500
 lgb_params['random_state'] = 99
-lgb_params['device'] = 'gpu'
-lgb_params['gpu_platform_id'] = 0
-lgb_params['gpu_device_id'] = 0
+# lgb_params['device'] = 'gpu'
+# lgb_params['gpu_platform_id'] = 0
+# lgb_params['gpu_device_id'] = 0
 
 lgb_params2 = {}
 lgb_params2['n_estimators'] = 1090
@@ -484,18 +517,18 @@ lgb_params2['subsample'] = 0.7
 lgb_params2['subsample_freq'] = 2
 lgb_params2['num_leaves'] = 16
 lgb_params2['random_state'] = 99
-lgb_params2['device'] = 'gpu'
-lgb_params2['gpu_platform_id'] = 0
-lgb_params2['gpu_device_id'] = 0
+# lgb_params2['device'] = 'gpu'
+# lgb_params2['gpu_platform_id'] = 0
+# lgb_params2['gpu_device_id'] = 0
 
 lgb_params3 = {}
 lgb_params3['n_estimators'] = 1100
 lgb_params3['max_depth'] = 4
 lgb_params3['learning_rate'] = 0.02
 lgb_params3['random_state'] = 99
-lgb_params3['device'] = 'gpu'
-lgb_params3['gpu_platform_id'] = 0
-lgb_params3['gpu_device_id'] = 0
+# lgb_params3['device'] = 'gpu'
+# lgb_params3['gpu_platform_id'] = 0
+# lgb_params3['gpu_device_id'] = 0
 
 lgb_model = LGBMClassifier(**lgb_params)
 
@@ -515,6 +548,15 @@ y_pred, y_pred_p = stack.fit_predict(X_train,y_train,X_test)
 
 accu = accuracy_score(y_pred, y_test)
 print('Cross : accuracy = {:>.4f}'.format(accu))
+
+
+# test = test.drop(['UW_Status__c', 'Credit_Line_Size__c'], axis=1)
+y_pred, y_pred_p = stack.fit_predict(X_train,y_train,test[col])
+
+test['UW_Status__c_pred'] = y_pred
+test['UW_Status__c_pred_prob'] = y_pred_p
+
+test.to_csv("my_res1.csv", index=False)
 
 #
 ## feature_impotant
